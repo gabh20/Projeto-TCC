@@ -1,0 +1,16 @@
+fingerprint         = "00:00:00:00:00"
+private_key_path    = "C:/Users/seu-usuario/.oci/oci_api_key.pem"
+region              = "sa-saopaulo-1"
+tenancy_ocid        = "ocid1.tenancy.oc1..substitua"
+user_ocid           = "ocid1.user.oc1..substitua"
+ssh_public_key_path = "C:/Users/seu-usuario/.ssh/id_rsa.pub"
+ssh_ingress_cidr    = "203.0.113.10/32"
+
+compartment_id      = "ocid1.tenancy.oc1..substitua"
+project_name        = "tcc-app"
+availability_domain = "substitua"
+
+# Free tier recomendado para Docker Compose. Se nao houver capacidade A1, use VM.Standard.E2.1.Micro.
+instance_shape         = "VM.Standard.A1.Flex"
+instance_ocpus         = 2
+instance_memory_in_gbs = 12

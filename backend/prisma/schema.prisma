@@ -1,0 +1,19 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model usuarios {
+  id          Int      @id @default(autoincrement())
+  nome        String   @db.VarChar(255)
+  email       String   @unique @db.VarChar(255)
+  telefone    String?  @db.VarChar(45)
+  data        DateTime? @db.Date
+  senhaHash   String   @map("senha_hash") @db.VarChar(255)
+  criadoEm    DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+}

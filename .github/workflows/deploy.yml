@@ -1,0 +1,154 @@
+name: Deploy OCI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: Instalar dependencias do frontend
+        working-directory: frontend
+        run: npm ci
+
+      - name: Executar lint do frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Construir frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Instalar dependencias do backend
+        working-directory: backend
+        run: npm ci
+
+      - name: Gerar cliente Prisma
+        working-directory: backend
+        env:
+          DATABASE_URL: mysql://prisma:prisma@localhost:3306/prisma
+        run: npm run prisma:generate
+
+      - name: Verificar TypeScript do backend
+        working-directory: backend
+        run: npx tsc --noEmit
+
+      - name: Testar autorizacao de usuarios
+        working-directory: backend
+        run: npm test
+
+      - name: Validar Docker Compose
+        run: docker compose --env-file .env.example config --quiet
+
+      - name: Construir imagem Docker do backend
+        run: docker build -t tcc-backend-validation backend
+
+      - name: Construir imagem Docker do frontend
+        run: docker build -t tcc-frontend-validation frontend
+
+  deploy:
+    name: Deploy
+    needs: validate
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Enviar arquivos
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.OCI_VM_HOST }}
+          username: ${{ secrets.OCI_VM_USER }}
+          key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          source: "backend,frontend,docker-compose.yml"
+          target: "/opt/tcc/app"
+          rm: true
+
+      - name: Publicar na VM
+        uses: appleboy/ssh-action@v1
+        env:
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          MYSQL_USER: ${{ secrets.MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+        with:
+          host: ${{ secrets.OCI_VM_HOST }}
+          username: ${{ secrets.OCI_VM_USER }}
+          key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          command_timeout: 30m
+          envs: MYSQL_DATABASE,MYSQL_USER,MYSQL_PASSWORD,MYSQL_ROOT_PASSWORD,DATABASE_URL,JWT_SECRET,CORS_ORIGIN
+          script: |
+            set -e
+            cd /opt/tcc/app
+            docker build -t cdigo-backend ./backend
+            docker build -t cdigo-frontend ./frontend
+            docker compose up -d --no-build
+
+      - name: Verificar aplicacao publicada
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OCI_VM_HOST }}
+          username: ${{ secrets.OCI_VM_USER }}
+          key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          command_timeout: 5m
+          script: |
+            set -e
+            cd /opt/tcc/app
+            docker compose ps
+
+            for attempt in $(seq 1 24); do
+              frontend_ok=0
+              api_ok=0
+
+              if curl -fsS http://127.0.0.1/ > /dev/null; then
+                frontend_ok=1
+              fi
+
+              api_response="$(curl -fsS http://127.0.0.1/api/ 2>/dev/null || true)"
+              if printf '%s' "$api_response" | grep -q 'API rodando com Fastify'; then
+                api_ok=1
+              fi
+
+              if [ "$frontend_ok" -eq 1 ] && [ "$api_ok" -eq 1 ]; then
+                echo "Aplicacao publicada e API respondendo corretamente."
+                exit 0
+              fi
+
+              echo "Aguardando a aplicacao iniciar: tentativa ${attempt}/24."
+              sleep 5
+            done
+
+            echo "A aplicacao nao respondeu corretamente dentro do tempo esperado."
+            docker compose ps
+            docker compose logs --tail=100 frontend backend || true
+            exit 1

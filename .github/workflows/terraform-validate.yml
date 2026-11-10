@@ -1,0 +1,46 @@
+name: Validate Terraform
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform-validate.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform-validate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-terraform:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Verificar formatacao
+        working-directory: infra
+        run: terraform fmt -check -recursive
+
+      - name: Inicializar para validacao
+        working-directory: infra
+        run: terraform init -backend=false -input=false -no-color
+
+      - name: Validar configuracao
+        working-directory: infra
+        run: terraform validate -no-color
