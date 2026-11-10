@@ -354,7 +354,7 @@ function App() {
               <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           </span>
-          <strong>Portal de Clientes</strong>
+          <strong>Portal de Clientes | Deploy automatizado</strong>
         </div>
 
         <section className="auth-panel" aria-live="polite">
