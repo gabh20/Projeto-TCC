@@ -193,12 +193,6 @@ function App() {
   const [profileMessage, setProfileMessage] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  if (!token) {
-    useEffect(() => {
-      setMessage('')
-    }, [])
-  }
-
   async function loadSession(activeToken: string) {
     const [profile, registeredUsers] = await Promise.all([
       apiRequest<User>('/auth/me', { token: activeToken }),
