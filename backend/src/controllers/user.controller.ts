@@ -56,6 +56,9 @@ export class UserController {
         try {
             const { id } = userIdParamsSchema.parse(request.params);
             const data = updateUserSchema.parse(request.body);
+            if (request.user?.sub !== id) {
+                return reply.status(403).send({ message: "Você só pode alterar seu próprio cadastro" });
+            }
             const user = await userService.update(id, data);
 
             return reply.status(200).send(user);
