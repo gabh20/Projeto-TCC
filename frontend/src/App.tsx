@@ -28,6 +28,8 @@ type RegisterForm = {
 
 type LoginForm = Pick<RegisterForm, 'email' | 'password'>
 
+type ProfileForm = Pick<RegisterForm, 'name' | 'phone' | 'birthDate'>
+
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3333'
 const tokenStorageKey = 'tcc-auth-token'
 
@@ -122,7 +124,10 @@ async function apiRequest<T>(
   options: RequestInit & { token?: string } = {},
 ) {
   const headers = new Headers(options.headers)
-  headers.set('Content-Type', 'application/json')
+
+  if (options.body) {
+    headers.set('Content-Type', 'application/json')
+  }
 
   if (options.token) {
     headers.set('Authorization', `Bearer ${options.token}`)
@@ -167,6 +172,14 @@ function formatPhone(value: string | null) {
   return `(${areaCode}) ${number.slice(0, 5)}-${number.slice(5)}`
 }
 
+function toProfileForm(user: User): ProfileForm {
+  return {
+    name: user.nome,
+    phone: user.telefone ? formatPhone(user.telefone) : '',
+    birthDate: user.data ? formatDate(user.data) : '',
+  }
+}
+
 function App() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [loginForm, setLoginForm] = useState<LoginForm>(emptyLoginForm)
@@ -176,6 +189,9 @@ function App() {
   const [users, setUsers] = useState<User[]>([])
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [profileForm, setProfileForm] = useState<ProfileForm | null>(null)
+  const [profileMessage, setProfileMessage] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function loadSession(activeToken: string) {
     const [profile, registeredUsers] = await Promise.all([
@@ -279,6 +295,69 @@ function App() {
     setCurrentUser(null)
     setUsers([])
     setMessage('')
+    setProfileForm(null)
+    setProfileMessage('')
+    setConfirmDelete(false)
+  }
+
+  async function submitProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!currentUser || !profileForm) {
+      return
+    }
+
+    const phone = profileForm.phone.replace(/\D/g, '')
+    const birthDate = parseBirthDate(profileForm.birthDate)
+
+    if (phone.length !== 10 && phone.length !== 11) {
+      setProfileMessage('Informe um telefone com DDD.')
+      return
+    }
+
+    if (!birthDate) {
+      setProfileMessage('Informe uma data de nascimento válida.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setProfileMessage('')
+
+    try {
+      const updatedUser = await apiRequest<User>(`/users/${currentUser.id}`, {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify({ name: profileForm.name, phone, birthDate }),
+      })
+
+      setCurrentUser(updatedUser)
+      setProfileForm(null)
+      setProfileMessage('Dados atualizados.')
+      await loadSession(token)
+    } catch (error) {
+      setProfileMessage(getErrorMessage(error))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function deleteAccount() {
+    if (!currentUser) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setProfileMessage('')
+
+    try {
+      await apiRequest<null>(`/users/${currentUser.id}`, { method: 'DELETE', token })
+      logout()
+      setMessage('Conta excluída.')
+    } catch (error) {
+      setProfileMessage(getErrorMessage(error))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (currentUser && token) {
@@ -309,6 +388,96 @@ function App() {
             <span>Nascimento</span>
             <strong>{formatDate(currentUser.data)}</strong>
           </div>
+        </section>
+
+        <section className="profile-actions">
+          <div className="section-title">
+            <h2>Meu cadastro</h2>
+          </div>
+
+          {profileForm ? (
+            <form className="profile-form" onSubmit={submitProfile}>
+              <label>
+                Nome
+                <input
+                  type="text"
+                  value={profileForm.name}
+                  onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Telefone
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={15}
+                  value={profileForm.phone}
+                  onChange={(event) =>
+                    setProfileForm({ ...profileForm, phone: maskPhone(event.target.value) })
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Nascimento
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="dd/mm/aaaa"
+                  maxLength={10}
+                  value={profileForm.birthDate}
+                  onChange={(event) =>
+                    setProfileForm({ ...profileForm, birthDate: maskBirthDate(event.target.value) })
+                  }
+                  required
+                />
+              </label>
+              <div className="profile-form-actions">
+                <button type="submit" className="primary-button" disabled={isSubmitting}>
+                  {isSubmitting ? 'Salvando...' : 'Salvar'}
+                </button>
+                <button type="button" className="secondary-button" onClick={() => setProfileForm(null)}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="profile-form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setProfileForm(toProfileForm(currentUser))
+                  setConfirmDelete(false)
+                  setProfileMessage('')
+                }}
+              >
+                Editar dados
+              </button>
+              {confirmDelete ? (
+                <>
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={deleteAccount}
+                    disabled={isSubmitting}
+                  >
+                    Confirmar exclusão
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => setConfirmDelete(false)}>
+                    Cancelar
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="danger-button" onClick={() => setConfirmDelete(true)}>
+                  Excluir conta
+                </button>
+              )}
+            </div>
+          )}
+
+          {profileMessage && <p className="form-message">{profileMessage}</p>}
         </section>
 
         <section className="table-section">

@@ -380,10 +380,72 @@ td { color: var(--text-strong); }
 tbody tr:hover { background: rgba(37, 99, 235, 0.04); }
 tbody tr:last-child td { border-bottom: 0; }
 
+.profile-actions {
+  margin: 0 0 18px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--soft-shadow);
+}
+
+.profile-actions .section-title { margin-bottom: 14px; }
+
+.profile-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.profile-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.profile-form input {
+  height: 36px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 0 12px;
+  color: var(--text-strong);
+  background: var(--field);
+  font: inherit;
+  font-size: 14px;
+}
+
+.profile-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+
+.danger-button {
+  height: 36px;
+  box-sizing: border-box;
+  border: 1px solid #b42318;
+  border-radius: 4px;
+  padding: 0 16px;
+  color: #b42318;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.danger-button:hover { background: rgba(180, 35, 24, 0.06); }
+
 @media (max-width: 700px) {
   .dashboard-header { display: grid; }
   .header-actions { justify-content: flex-start; }
   .profile-grid { grid-template-columns: 1fr; }
+  .profile-form { grid-template-columns: 1fr; }
 
   .table-wrap {
     overflow: visible;
